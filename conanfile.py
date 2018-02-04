@@ -9,7 +9,7 @@ class NettleConan(ConanFile):
     version = "3.3"
     branch = "master"
     ZIP_FOLDER_NAME = "nettle-%s" % version
-    generators = "nix-pc"
+    generators = "txt"
     settings =  "os", "compiler", "arch", "build_type"
     options = {"shared": [True, False]}
     requires = 'gmp/6.1.1@DEGoodmanWilson/testing'
