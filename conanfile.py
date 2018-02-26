@@ -1,93 +1,67 @@
-from conans import ConanFile
-import os, shutil
-from conans.tools import download, unzip, replace_in_file, check_md5
-from conans import CMake
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+from conans import ConanFile, AutoToolsBuildEnvironment, tools
+import os
 
 
 class NettleConan(ConanFile):
     name = "nettle"
     version = "3.3"
-    branch = "master"
-    ZIP_FOLDER_NAME = "nettle-%s" % version
-    generators = "txt"
-    settings =  "os", "compiler", "arch", "build_type"
+    url = "https://github.com/DEGoodmanWilson/conan-nettle"
+    description = "The Nettle and Hogweed low-level cryptographic libraries"
+    license = "https://www.lysator.liu.se/~nisse/nettle/nettle.html#Copyright"
+    exports_sources = ["CMakeLists.txt"]
+    settings = "os", "arch", "compiler", "build_type"
     options = {"shared": [True, False]}
-    requires = 'gmp/6.1.1@DEGoodmanWilson/testing'
-
-    url = "http://github.com/DEGoodmanWilson/conan-nettle"
     default_options = "shared=False"
+    requires = 'gmp/6.1.1@DEGoodmanWilson/stable'
+
 
     def source(self):
-        zip_name = "nettle-%s.tar.gz" % self.version
-        download("https://ftp.gnu.org/gnu/nettle//%s" % zip_name, zip_name)
-        check_md5(zip_name, "10f969f78a463704ae73529978148dbe")
-        unzip(zip_name)
-        os.unlink(zip_name)
-
-    def config(self):
-        del self.settings.compiler.libcxx
-
-    def generic_env_configure_vars(self, verbose=False):
-        """Reusable in any lib with configure!!"""
-
-        if self.settings.os == "Windows":
-            self.output.fatal("Cannot build on Windows, sorry!")
-            return
-
-        if self.settings.os == "Linux" or self.settings.os == "Macos":
-            libs = 'LIBS="%s"' % " ".join(["-l%s" % lib for lib in self.deps_cpp_info.libs])
-            ldflags = 'LDFLAGS="%s"' % " ".join(["-L%s" % lib for lib in self.deps_cpp_info.lib_paths]) 
-            archflag = "-m32" if self.settings.arch == "x86" else ""
-            cflags = 'CFLAGS="-fPIC %s %s %s"' % (archflag, " ".join(self.deps_cpp_info.cflags), " ".join(['-I"%s"' % lib for lib in self.deps_cpp_info.include_paths]))
-            cpp_flags = 'CPPFLAGS="%s %s %s"' % (archflag, " ".join(self.deps_cpp_info.cppflags), " ".join(['-I"%s"' % lib for lib in self.deps_cpp_info.include_paths]))
-            command = "env %s %s %s %s" % (libs, ldflags, cflags, cpp_flags)
-        elif self.settings.os == "Windows" and self.settings.compiler == "Visual Studio":
-            cl_args = " ".join(['/I"%s"' % lib for lib in self.deps_cpp_info.include_paths])
-            lib_paths= ";".join(['"%s"' % lib for lib in self.deps_cpp_info.lib_paths])
-            command = "SET LIB=%s;%%LIB%% && SET CL=%s" % (lib_paths, cl_args)
-            if verbose:
-                command += " && SET LINK=/VERBOSE"
-        
-        return command
+        source_url = "https://ftp.gnu.org/gnu/nettle"
+        tools.get("{0}/nettle-{1}.tar.gz".format(source_url, self.version))
+        extracted_dir = self.name + "-" + self.version
+        os.rename(extracted_dir, "sources")
        
     def build(self):
-        if self.settings.os == "Windows":
-            self.output.fatal("Cannot build on Windows, sorry!")
-            return # no can do boss!
+        if self.settings.compiler == 'Visual Studio':
+            # self.build_vs()
+            self.output.fatal("No windows support yet. Sorry. Help a fellow out and contribute back?")
 
-        self.build_with_configure()
-            
-        
-    def build_with_configure(self):
-        config_options_string = ""
+        with tools.chdir("sources"):
+            env_build = AutoToolsBuildEnvironment(self)
+            env_build.fpic = True
 
-        for option_name in self.options.values.fields:
-            activated = getattr(self.options, option_name)
-            if activated:
-                self.output.info("Activated option! %s" % option_name)
-                config_options_string += " --%s" % option_name.replace("_", "-")
+            config_args = []
+            for option_name in self.options.values.fields:
+                if(option_name == "shared"):
+                    if(getattr(self.options, "shared")):
+                        config_args.append("--enable-shared")
+                        config_args.append("--disable-static")
+                    else:
+                        config_args.append("--enable-static")
+                        config_args.append("--disable-shared")
+                else:
+                    activated = getattr(self.options, option_name)
+                    if activated:
+                        self.output.info("Activated option! %s" % option_name)
+                        config_args.append("--%s" % option_name)
 
-        configure_command = "cd %s && %s ./configure --enable-static --enable-shared %s" % (self.ZIP_FOLDER_NAME, self.generic_env_configure_vars(), config_options_string)
-        self.output.warn(configure_command)
-        self.run(configure_command)
-        self.run("cd %s && make" % self.ZIP_FOLDER_NAME)
-       
+            env_build.configure(args=config_args)
+            env_build.make()
+
 
     def package(self):
-        if self.settings.os == "Windows":
-            self.output.fatal("Cannot build on Windows, sorry!")
-            return
+        self.copy(pattern="COPYING*", src="sources")
+        self.copy(pattern="*.h", dst="include", src="sources")
+        # self.copy(pattern="*.dll", dst="bin", src="bin", keep_path=False)
+        self.copy(pattern="*.lib", dst="lib", src="sources", keep_path=False)
+        self.copy(pattern="*.a", dst="lib", src="sources", keep_path=False)
+        self.copy(pattern="*.so*", dst="lib", src="sources", keep_path=False)
+        self.copy(pattern="*.dylib", dst="lib", src="sources", keep_path=False)
 
-        self.copy("*.h", dst="include/nettle", src="%s" % (self.ZIP_FOLDER_NAME), keep_path=True)
-        if self.options.shared:
-            self.copy(pattern="*.so*", dst="lib", src=self.ZIP_FOLDER_NAME, keep_path=False)
-            self.copy(pattern="*.dll*", dst="bin", src=self.ZIP_FOLDER_NAME, keep_path=False)
-        else:
-            self.copy(pattern="*.a", dst="lib", src="%s" % self.ZIP_FOLDER_NAME, keep_path=False)
-        
-        self.copy(pattern="*.lib", dst="lib", src="%s" % self.ZIP_FOLDER_NAME, keep_path=False)
-        
     def package_info(self):
-        self.cpp_info.libs = ['nettle', 'hogweed']
+        self.cpp_info.libs = tools.collect_libs(self)
 
 
