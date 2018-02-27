@@ -7,7 +7,7 @@ import os
 
 class NettleConan(ConanFile):
     name = "nettle"
-    version = "3.3"
+    version = "3.4"
     url = "https://github.com/DEGoodmanWilson/conan-nettle"
     description = "The Nettle and Hogweed low-level cryptographic libraries"
     license = "https://www.lysator.liu.se/~nisse/nettle/nettle.html#Copyright"
