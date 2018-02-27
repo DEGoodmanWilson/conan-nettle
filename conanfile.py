@@ -13,16 +13,20 @@ class NettleConan(ConanFile):
     license = "https://www.lysator.liu.se/~nisse/nettle/nettle.html#Copyright"
     exports_sources = ["CMakeLists.txt"]
     settings = "os", "arch", "compiler", "build_type"
-    options = {"shared": [True, False]}
-    default_options = "shared=False"
+    options = {"shared": [True, False], "disable-assembler": [True, False]}
+    default_options = "shared=False", "disable-assembler=False"
     requires = 'gmp/6.1.1@DEGoodmanWilson/stable'
-
 
     def source(self):
         source_url = "https://ftp.gnu.org/gnu/nettle"
         tools.get("{0}/nettle-{1}.tar.gz".format(source_url, self.version))
         extracted_dir = self.name + "-" + self.version
         os.rename(extracted_dir, "sources")
+
+    def config(self):
+        if self.settings.os == "Macos":
+            # ignore this setting on Macos, because for now we have to diable assmebly anyway
+            self.options.remove('disable-assembler')
        
     def build(self):
         if self.settings.compiler == 'Visual Studio':
@@ -47,6 +51,10 @@ class NettleConan(ConanFile):
                     if activated:
                         self.output.info("Activated option! %s" % option_name)
                         config_args.append("--%s" % option_name)
+
+            if self.settings.os == "Macos":
+                self.output.info("Disabling assembly on mac.")
+                config_args.append("--disable-assembler")
 
             env_build.configure(args=config_args)
             env_build.make()
