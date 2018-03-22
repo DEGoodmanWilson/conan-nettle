@@ -17,6 +17,9 @@ class NettleConan(ConanFile):
     default_options = "shared=False"
     requires = 'gmp/6.1.1@DEGoodmanWilson/stable'
 
+    def configure(self):
+        # Because this is pure C
+        del self.settings.compiler.libcxx
 
     def source(self):
         source_url = "https://ftp.gnu.org/gnu/nettle"
